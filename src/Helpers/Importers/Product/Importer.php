@@ -50,6 +50,10 @@ class Importer extends BaseImporter
 
         foreach ($data as $rowData) {
             /**
+             * change the product url key if already exist
+             */
+            $this->changeUrlKeyIfAlreadyExists($rowData, 1);
+            /**
              * Prepare products for import
              */
             $this->prepareProducts($rowData, $products);
@@ -122,6 +126,32 @@ class Importer extends BaseImporter
         $this->saveLinks($links);
 
         return true;
+    }
+
+    /**
+     * Change the url key if it already exists
+     */
+    public function changeUrlKeyIfAlreadyExists(array &$rowData, int $count, ?string $baseUrlKey = null): void
+    {
+        $baseUrlKey = $baseUrlKey ?? $rowData['url_key'];
+        
+        if (core()->getConfigData('catalog.products.search.engine') == 'elastic') {
+            $searchEngine = core()->getConfigData('catalog.products.search.storefront_mode');
+        }
+
+        $product = $this->productRepository
+            ->setSearchEngine($searchEngine ?? 'database')
+            ->findBySlug($rowData['url_key']);
+
+        if (! empty($product['sku']) && $product['sku'] == $rowData['sku']) {
+            return;
+        }
+
+        if ($product) {
+            $rowData['url_key'] = $baseUrlKey.'-'.$count;
+            $count++;
+            $this->changeUrlKeyIfAlreadyExists($rowData, $count, $baseUrlKey);
+        }
     }
 
     /**
