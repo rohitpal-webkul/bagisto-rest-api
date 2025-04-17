@@ -155,6 +155,47 @@ class Importer extends BaseImporter
     }
 
     /**
+     * Save products from current batch
+     */
+    public function prepareAttributeValues(array $rowData, array &$attributeValues): void
+    {
+        $data = [];
+
+        $familyAttributes = $this->getProductTypeFamilyAttributes($rowData['type'], $rowData['attribute_family_code']);
+
+        foreach ($rowData as $attributeCode => $value) {
+            if (is_null($value)) {
+                continue;
+            }
+
+            $attribute = $familyAttributes->where('code', $attributeCode)->first();
+            
+            if (! $attribute) {
+                continue;
+            }
+            
+            if ($attribute->type == 'select' && $attribute->is_configurable == '1') {
+                // skip configurable attributes
+                $attributeOption = $this->attributeOptionRepository
+                    ->where('attribute_id', $attribute->id)
+                    ->where('admin_name', $value)
+                    ->first();
+
+                $value = $attributeOption?->id ?? $value;
+            }
+
+            $attributeTypeValues = array_fill_keys(array_values($attribute->attributeTypeFields), null);
+
+            $attributeValues[$rowData['sku']][] = array_merge($attributeTypeValues, [
+                'attribute_id'          => $attribute->id,
+                $attribute->column_name => $value,
+                'channel'               => $attribute->value_per_channel ? $rowData['channel'] : null,
+                'locale'                => $attribute->value_per_locale ? $rowData['locale'] : null,
+            ]);
+        }
+    }
+
+    /**
      * Prepare images from current batch
      */
     public function prepareImages(array $rowData, array &$imagesData): void
